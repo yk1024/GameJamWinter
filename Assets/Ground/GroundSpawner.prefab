@@ -1,0 +1,60 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!1 &8924353060478099887
+GameObject:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  serializedVersion: 6
+  m_Component:
+  - component: {fileID: 1111120547500977610}
+  - component: {fileID: 8565654246523632778}
+  m_Layer: 0
+  m_Name: GroundSpawner
+  m_TagString: Untagged
+  m_Icon: {fileID: 0}
+  m_NavMeshLayer: 0
+  m_StaticEditorFlags: 0
+  m_IsActive: 1
+--- !u!4 &1111120547500977610
+Transform:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 8924353060478099887}
+  serializedVersion: 2
+  m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
+  m_LocalPosition: {x: 0.56281, y: -0.57316, z: 0}
+  m_LocalScale: {x: 1, y: 1, z: 1}
+  m_ConstrainProportionsScale: 0
+  m_Children: []
+  m_Father: {fileID: 0}
+  m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
+--- !u!114 &8565654246523632778
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 8924353060478099887}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 056e918e4d49a294ab4d047e8f6dd81e, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: '::'
+  targetCamera: {fileID: 0}
+  groundPrefab: {fileID: 7150121900155846493, guid: d3463c1893336c44da461f0090644afe, type: 3}
+  springGroundPrefab: {fileID: 5532515903569815868, guid: 29d208242f65e8845b148152e60f97a9, type: 3}
+  xMargin: 0.6
+  spawnAhead: 12
+  destroyBelow: 8
+  minStepY: 1.2
+  maxStepY: 2.6
+  maxStepX: 3
+  springChance: 0.15
+  springCooldownCount: 3
+  initialCount: 12
+  initialStartY: -2
+  initialEndY: 12
