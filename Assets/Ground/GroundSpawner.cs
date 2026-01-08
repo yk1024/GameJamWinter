@@ -9,7 +9,8 @@ public class PlatformSpawner2D : MonoBehaviour
     [Header("Prefabs")]
     [SerializeField] private GameObject groundPrefab;
     [SerializeField] private GameObject springGroundPrefab;
-    [SerializeField] private GameObject thornGroundPrefab; // 追加
+    [SerializeField] private GameObject thornGroundPrefab;
+    [SerializeField] private GameObject moveGroundPrefab;
 
     [Header("Spawn Area")]
     [SerializeField] private float xMargin = 0.6f;
@@ -21,15 +22,20 @@ public class PlatformSpawner2D : MonoBehaviour
     [SerializeField] private float maxStepY = 2.6f;
     [SerializeField] private float maxStepX = 3.0f;
 
-    [Header("Spring Settings")]
+    [Header("Chances")]
     [Range(0f, 1f)]
     [SerializeField] private float springChance = 0.15f;
-    [SerializeField] private int springCooldownCount = 3;
 
-    [Header("Thorn Settings")]
     [Range(0f, 1f)]
     [SerializeField] private float thornChance = 0.08f;
+
+    [Range(0f, 1f)]
+    [SerializeField] private float moveChance = 0.12f;
+
+    [Header("Cooldown (avoid consecutive spawns)")]
+    [SerializeField] private int springCooldownCount = 3;
     [SerializeField] private int thornCooldownCount = 4;
+    [SerializeField] private int moveCooldownCount = 2;
 
     [Header("Initial Platforms")]
     [SerializeField] private int initialCount = 12;
@@ -37,11 +43,13 @@ public class PlatformSpawner2D : MonoBehaviour
     [SerializeField] private float initialEndY = 12f;
 
     private readonly List<GameObject> spawned = new();
+
     private float nextSpawnY;
     private float lastX;
 
     private int springCooldownLeft;
     private int thornCooldownLeft;
+    private int moveCooldownLeft;
 
     private void Awake()
     {
@@ -58,8 +66,7 @@ public class PlatformSpawner2D : MonoBehaviour
             for (int i = 0; i < initialCount; i++)
             {
                 float t = (initialCount == 1) ? 1f : (float)i / (initialCount - 1);
-                float targetY = Mathf.Lerp(initialStartY, initialEndY, t);
-                y = targetY;
+                y = Mathf.Lerp(initialStartY, initialEndY, t);
 
                 float x = GetNextX(lastX);
                 SpawnPlatform(new Vector2(x, y), forceGround: true);
@@ -108,26 +115,29 @@ public class PlatformSpawner2D : MonoBehaviour
     {
         if (forceGround) return groundPrefab;
 
-        // クールダウン消化
+        // cooldown消化
         if (springCooldownLeft > 0) springCooldownLeft--;
         if (thornCooldownLeft > 0) thornCooldownLeft--;
+        if (moveCooldownLeft > 0) moveCooldownLeft--;
 
-        // まずトゲ（危険）は出しすぎ注意なので、クールダウン中は出さない
-        bool canSpawnThorn = thornGroundPrefab != null && thornCooldownLeft <= 0;
-        bool canSpawnSpring = springGroundPrefab != null && springCooldownLeft <= 0;
+        bool canSpring = springGroundPrefab != null && springCooldownLeft <= 0;
+        bool canThorn = thornGroundPrefab != null && thornCooldownLeft <= 0;
+        bool canMove = moveGroundPrefab != null && moveCooldownLeft <= 0;
 
-        // 競合しないように1回の生成でどれか1種
-        float r = Random.value;
-
-        // thorn判定（優先したいなら先に判定）
-        if (canSpawnThorn && r < thornChance)
+        // 優先順は「トゲ→動く→バネ→通常」にしています（好みで変えてOK）
+        if (canThorn && Random.value < thornChance)
         {
             thornCooldownLeft = thornCooldownCount;
             return thornGroundPrefab;
         }
 
-        // spring判定（rを引き直すと確率が読みやすい）
-        if (canSpawnSpring && Random.value < springChance)
+        if (canMove && Random.value < moveChance)
+        {
+            moveCooldownLeft = moveCooldownCount;
+            return moveGroundPrefab;
+        }
+
+        if (canSpring && Random.value < springChance)
         {
             springCooldownLeft = springCooldownCount;
             return springGroundPrefab;
@@ -143,6 +153,7 @@ public class PlatformSpawner2D : MonoBehaviour
 
         float x = Random.Range(left, right);
 
+        // 直前足場からの到達可能範囲にクランプ
         float reachLeft = prevX - maxStepX;
         float reachRight = prevX + maxStepX;
 

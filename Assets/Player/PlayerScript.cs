@@ -1,7 +1,8 @@
-using System.Collections;
+ï»¿using System.Collections;
 using UnityEngine;
 
 [RequireComponent(typeof(Rigidbody2D))]
+[RequireComponent(typeof(Collider2D))]
 public class PlayerAutoJump2D : MonoBehaviour
 {
     [Header("Move")]
@@ -14,30 +15,23 @@ public class PlayerAutoJump2D : MonoBehaviour
     [Header("Ground Tags")]
     [SerializeField] private string groundTag = "Ground";
     [SerializeField] private string springGroundTag = "SpringGround";
+
+    [Header("Thorn Ground Tag")]
     [SerializeField] private string thornGroundTag = "ThornGround";
 
-    [Header("Horizontal Wrap (Screen Edge)")]
-    [SerializeField] private Camera targetCamera;
-    [SerializeField] private float wrapMargin = 0.2f;
-
-    [Header("Sprites")]
+    [Header("Landing Sprite")]
     [SerializeField] private SpriteRenderer spriteRenderer;
     [SerializeField] private Sprite normalSprite;
-    [SerializeField] private Sprite landSprite;
-    [SerializeField] private float landSpriteTime = 0.08f;
-    [SerializeField] private Sprite fastFallSprite;
-
-    [Header("Facing")]
-    [Tooltip("ƒfƒtƒHƒ‹ƒg‚ª‰EŒü‚«‚È‚çON‚Ì‚Ü‚Ü‚ÅOKBƒfƒtƒHƒ‹ƒg‚ª¶Œü‚«‚ÌŠG‚È‚çOFF‚É‚µ‚Ä‚­‚¾‚³‚¢B")]
-    [SerializeField] private bool defaultFacingRight = true;
-    [Tooltip("“ü—Í‚ª0‚Ì‚àÅŒã‚ÌŒü‚«‚ğˆÛ‚·‚é")]
-    [SerializeField] private bool keepFacingWhenNoInput = true;
+    [SerializeField] private Sprite landingSprite;
+    [SerializeField] private float landingSpriteDuration = 0.08f;
 
     [Header("Fast Fall")]
+    [SerializeField] private Sprite fastFallSprite;
     [SerializeField] private KeyCode fastFallKey = KeyCode.DownArrow;
     [SerializeField] private KeyCode fastFallAltKey = KeyCode.S;
     [SerializeField] private float fastFallVelocity = -18f;
-    [SerializeField] private bool allowFastFallInUpward = false;
+    [Tooltip("trueãªã‚‰ä¸Šæ˜‡ä¸­ã§ã‚‚æ€¥é™ä¸‹ã‚’é–‹å§‹/é©ç”¨ã§ãã¾ã™")]
+    [SerializeField] private bool allowFastFallInUpward = true;
 
     [Header("Afterimage (Fast Fall Only)")]
     [SerializeField] private Afterimage2D afterimagePrefab;
@@ -45,18 +39,21 @@ public class PlayerAutoJump2D : MonoBehaviour
     [SerializeField] private float afterimageMinSpeed = 0.1f;
     private float afterimageTimer;
 
-    [Header("Brace (“¥‚ñ’£‚è - Hold)")]
+    [Header("Flutter Jump (æŠ¼ã—ã£ã±ã§è½ä¸‹é–‹å§‹æ™‚ã«ç™ºå‹• / ã‚¹ã‚¿ãƒŸãƒŠã§çµ‚äº†)")]
     [SerializeField] private KeyCode braceKey = KeyCode.UpArrow;
     [SerializeField] private KeyCode braceAltKey = KeyCode.W;
-    [SerializeField] private float braceFallVelocityLimit = -3f;
+    [Header("Flutterã®åŠ¹æœä¸­ã€è½ä¸‹é€Ÿåº¦ãŒã“ã‚Œã‚ˆã‚Šé€Ÿããªã‚‰ãªã„")]
+    [SerializeField] private float braceFallVelocityLimit = -5f;
+    [Header("Flutterã®ã‚¹ã‚¿ãƒŸãƒŠï¼ˆç§’ï¼‰ã€‚æŠ¼ã—ã£ã±ã§è½ä¸‹ã«è»¢ã˜ãŸã‚‰ç™ºå‹•ã—ã€ã“ã®æ™‚é–“ã ã‘ç¶™ç¶š")]
     [SerializeField] private float braceHoldTime = 0.35f;
-    [SerializeField] private float braceUpVelocity = 2.5f;
+    [Header("ç™ºå‹•ç¬é–“ã«ä¸€åº¦ã ã‘ä¸Šå‘ãã«æŠ¼ã—ä¸Šã’ã‚‹é€Ÿåº¦ï¼ˆå°ã•ã‚: 1ã€œ4ç¨‹åº¦ï¼‰")]
+    [SerializeField] private float braceUpVelocity = 3.5f;
 
     [Header("Sound Effects (OneShot)")]
     [SerializeField] private AudioSource sfxSource;
     [SerializeField] private AudioClip jumpSfx;
     [SerializeField] private AudioClip braceStartSfx;
-    [SerializeField] private AudioClip braceBoostSfx;
+    [SerializeField] private AudioClip braceBoostSfx; // exhausted/finishç”¨ã¨ã—ã¦æµç”¨ã—ã¦ã‚‚OK
     [SerializeField] private float sfxVolume = 1f;
 
     [Header("Sound Effects (FastFall Loop)")]
@@ -64,22 +61,82 @@ public class PlayerAutoJump2D : MonoBehaviour
     [SerializeField] private AudioClip fastFallLoopClip;
     [SerializeField] private float fastFallLoopVolume = 1f;
 
+    [Header("Facing / FlipX")]
+    [SerializeField] private bool defaultFacingRight = true;
+    [SerializeField] private bool keepFacingWhenNoInput = true;
+
+    [Header("Wrap (Horizontal Only)")]
+    [SerializeField] private Camera targetCamera;
+    [SerializeField] private float wrapMargin = 0.2f;
+
+    [Header("GroundCheck (BoxCast)")]
+    [Tooltip("é€šå¸¸ã¯ Everything ã®ã¾ã¾ã§OKã€‚å¿…è¦ãªã‚‰ Ground/Spring/Thorn ã®ãƒ¬ã‚¤ãƒ¤ãƒ¼ã ã‘ã«çµã£ã¦ãã ã•ã„ã€‚")]
+    [SerializeField] private LayerMask groundCheckMask = ~0;
+    [Tooltip("è¶³å…ƒã«å‡ºã™Boxã®æ¨ªå¹…ï¼ˆColliderå¹…ã«å¯¾ã™ã‚‹å€ç‡ï¼‰")]
+    [SerializeField, Range(0.2f, 1.2f)] private float groundCheckWidthScale = 0.92f;
+    [Tooltip("è¶³å…ƒã«å‡ºã™Boxã®é«˜ã•ï¼ˆå°ã•ã‚æ¨å¥¨ï¼‰")]
+    [SerializeField] private float groundCheckHeight = 0.08f;
+    [Tooltip("BoxCastã®è·é›¢ï¼ˆå°ã•ã‚æ¨å¥¨ï¼‰")]
+    [SerializeField] private float groundCheckDistance = 0.08f;
+    [Tooltip("è¶³å…ƒBoxã®ä¸­å¿ƒã‚ªãƒ•ã‚»ãƒƒãƒˆ")]
+    [SerializeField] private Vector2 groundCheckOffset = Vector2.zero;
+    [Tooltip("åºŠã¨è¦‹ãªã™æ³•ç·šã®æœ€å°Yã€‚0.5=ã‹ãªã‚Šå³ã—ã„ã€0.2~0.35ã‚ãŸã‚ŠãŒç„¡é›£")]
+    [SerializeField, Range(0f, 1f)] private float groundNormalMinY = 0.25f;
+    [Tooltip("yé€Ÿåº¦ãŒã“ã®å€¤ä»¥ä¸‹ã®ã¨ãã ã‘ã€Œæ¥åœ°ä¸­ã€ã¨æ‰±ã†ï¼ˆä¸Šæ˜‡ä¸­ã«æ¥åœ°åˆ¤å®šãŒæ®‹ã£ã¦ã‚‚ç©ºä¸­æ‰±ã„ã«ã™ã‚‹ï¼‰")]
+    [SerializeField] private float groundedMaxUpwardVelocity = 0.02f;
+
+    [Header("Tap Move")]
+    [SerializeField] private bool enableTapMove = true;
+    [SerializeField] private bool splitScreenLeftRight = true;
+    [SerializeField, Range(0f, 1f)] private float tapMoveStrength = 1f;
+    [SerializeField] private bool combineKeyboardAndTap = true;
+
+    [Header("Thorn Hit (Frames / SFX)")]
+    [Tooltip("Sprite Editorã§ã‚¹ãƒ©ã‚¤ã‚¹ã—ãŸã‚³ãƒã‚’å·¦â†’å³é †ã«å…¥ã‚Œã¦ãã ã•ã„")]
+    [SerializeField] private Sprite[] thornHitFrames;
+    [Tooltip("1ã‚³ãƒã®ç§’æ•°")]
+    [SerializeField] private float thornHitFrameTime = 0.06f;
+    [Tooltip("æœ€å¾Œã®ã‚³ãƒã‚’ä¿æŒã™ã‚‹ãªã‚‰ONï¼ˆOFFãªã‚‰é€šå¸¸ã‚¹ãƒ—ãƒ©ã‚¤ãƒˆã¸æˆ»ã‚‹ï¼‰")]
+    [SerializeField] private bool holdLastThornFrame = true;
+    [Tooltip("ãƒˆã‚²ã«è§¦ã‚ŒãŸæ™‚ã®åŠ¹æœéŸ³ï¼ˆOneShotï¼‰")]
+    [SerializeField] private AudioClip thornHitSfx;
+    [Tooltip("ã‚¢ãƒ‹ãƒ¡å¾Œã€Resultã¸é·ç§»ã™ã‚‹ã¾ã§ã®è¿½åŠ å¾…ã¡æ™‚é–“ï¼ˆ0ã§å³é·ç§»ï¼‰")]
+    [SerializeField] private float thornHitExtraDelay = 0f;
+
     private Rigidbody2D rb;
+    private Collider2D myCollider;
 
-    private Coroutine landRoutine;
-    private bool isLandingSpritePlaying;
-
+    // çŠ¶æ…‹
     private bool isFastFalling;
 
-    private bool braceUsedInAir;
-    private bool isBracing;
-    private float braceHoldTimer;
-    private bool braceBoosted;
+    // Flutter Jump (ãƒ¨ãƒƒã‚·ãƒ¼é¢¨)
+    private bool isFluttering;
+    private bool flutterUsedInAir;
+    private float flutterTimeLeft;
+
+    private bool isLandingSpritePlaying;
+
+    // FixedUpdateã§ç‰©ç†ã‚’æ›¸ãæ›ãˆã‚‹ãŸã‚ã€Updateã§å…¥åŠ›ã‚’ã‚­ãƒ£ãƒƒã‚·ãƒ¥ã™ã‚‹
+    private float cachedMoveInputX;
+    private bool braceHeldCached;
+    private bool fastFallPressedQueued;
+
+    // Ground state (BoxCast)
+    private bool wasGrounded;
+    private readonly RaycastHit2D[] groundHits = new RaycastHit2D[8];
+
+    // Thorn / GameOver
+    private bool isDead;
+    private Coroutine thornRoutine;
+
+    private enum GroundKind { None, Ground, Spring, Thorn }
 
     private void Awake()
     {
         rb = GetComponent<Rigidbody2D>();
         rb.freezeRotation = true;
+
+        myCollider = GetComponent<Collider2D>();
 
         if (targetCamera == null) targetCamera = Camera.main;
 
@@ -104,29 +161,238 @@ public class PlayerAutoJump2D : MonoBehaviour
 
     private void Update()
     {
-        // ¶‰EˆÚ“®
-        float x = Input.GetAxisRaw("Horizontal");
-        rb.linearVelocity = new Vector2(x * moveSpeed, rb.linearVelocity.y);
+        if (isDead) return;
 
-        // ’Ç‰ÁFŒü‚«XV
-        UpdateFacing(x);
+        float keyboardX = Input.GetAxisRaw("Horizontal");
+        float tapX = enableTapMove ? GetTapHorizontalInput() : 0f;
 
-        HandleFastFallInput();
-        HandleBraceInputAndState();
+        if (combineKeyboardAndTap)
+            cachedMoveInputX = Mathf.Clamp(keyboardX + tapX * tapMoveStrength, -1f, 1f);
+        else
+            cachedMoveInputX = Mathf.Abs(tapX) > 0.01f ? tapX * tapMoveStrength : keyboardX;
 
-        ApplyFastFallIfActive();
-        ApplyBraceIfActive();
+        UpdateFacing(cachedMoveInputX);
+
+        if (Input.GetKeyDown(fastFallKey) || Input.GetKeyDown(fastFallAltKey))
+            fastFallPressedQueued = true;
+
+        braceHeldCached = Input.GetKey(braceKey) || Input.GetKey(braceAltKey);
 
         UpdateSpriteByState();
         UpdateAfterimage();
     }
 
+    private float GetTapHorizontalInput()
+    {
+        bool pressed = Input.GetMouseButton(0);
+        if (!pressed) return 0f;
+
+        float x = Input.mousePosition.x;
+        float mid = Screen.width * 0.5f;
+
+        if (!splitScreenLeftRight) { /* ä»Šã¯å·¦å³åˆ†å‰²ã®ã¿ */ }
+
+        return (x < mid) ? -1f : 1f;
+    }
+
+    private void FixedUpdate()
+    {
+        if (isDead) return;
+        if (rb == null) return;
+
+        Vector2 v = rb.linearVelocity;
+
+        GroundKind groundKind;
+        bool groundedNow = CheckGround(out groundKind, out RaycastHit2D hit);
+        bool consideredGrounded = groundedNow && v.y <= groundedMaxUpwardVelocity;
+
+        if (!wasGrounded && consideredGrounded)
+        {
+            bool landedFromAbove = hit.collider != null && hit.normal.y >= groundNormalMinY;
+
+            if (groundKind == GroundKind.Thorn && landedFromAbove)
+            {
+                TriggerGameOverByThorn();
+                return;
+            }
+
+            if (groundKind == GroundKind.Ground || groundKind == GroundKind.Spring)
+            {
+                OnLanded(groundKind, ref v);
+                consideredGrounded = false;
+                groundedNow = false;
+            }
+        }
+
+        if (consideredGrounded)
+            SetFastFall(false);
+
+        if (fastFallPressedQueued)
+        {
+            fastFallPressedQueued = false;
+
+            if (!consideredGrounded)
+            {
+                CancelFlutter(consume: true);
+                SetFastFall(true);
+            }
+        }
+
+        v.x = cachedMoveInputX * moveSpeed;
+
+        TryStartFlutter(ref v, consideredGrounded);
+        ApplyFlutter(ref v);
+
+        if (isFastFalling && !consideredGrounded)
+        {
+            if (allowFastFallInUpward || v.y <= 0f)
+                v.y = Mathf.Min(v.y, fastFallVelocity);
+        }
+
+        rb.linearVelocity = v;
+
+        wasGrounded = consideredGrounded;
+    }
+
     private void LateUpdate()
     {
+        if (isDead) return;
         DoHorizontalWrap();
     }
 
-    // ’Ç‰Á
+    // ======== GroundCheck (BoxCast) ========
+    private bool CheckGround(out GroundKind kind, out RaycastHit2D bestHit)
+    {
+        kind = GroundKind.None;
+        bestHit = default;
+
+        if (myCollider == null) return false;
+
+        Bounds b = myCollider.bounds;
+
+        Vector2 boxSize = new Vector2(b.size.x * groundCheckWidthScale, groundCheckHeight);
+        Vector2 origin = new Vector2(b.center.x, b.min.y + boxSize.y * 0.5f) + groundCheckOffset;
+
+        int count = Physics2D.BoxCastNonAlloc(
+            origin,
+            boxSize,
+            0f,
+            Vector2.down,
+            groundHits,
+            groundCheckDistance,
+            groundCheckMask
+        );
+
+        if (count <= 0) return false;
+
+        bool found = false;
+        float bestNormalY = -999f;
+        float bestDist = 999f;
+
+        for (int i = 0; i < count; i++)
+        {
+            var h = groundHits[i];
+            if (h.collider == null) continue;
+            if (h.collider.isTrigger) continue;
+
+            GroundKind k = GroundKind.None;
+            if (h.collider.CompareTag(thornGroundTag)) k = GroundKind.Thorn;
+            else if (h.collider.CompareTag(springGroundTag)) k = GroundKind.Spring;
+            else if (h.collider.CompareTag(groundTag)) k = GroundKind.Ground;
+            else continue;
+
+            if (h.normal.y < groundNormalMinY) continue;
+
+            if (!found || h.normal.y > bestNormalY || (Mathf.Approximately(h.normal.y, bestNormalY) && h.distance < bestDist))
+            {
+                found = true;
+                bestNormalY = h.normal.y;
+                bestDist = h.distance;
+                bestHit = h;
+                kind = k;
+            }
+        }
+
+        return found;
+    }
+
+    // ======== Landing / AutoJump ========
+    private void OnLanded(GroundKind kind, ref Vector2 v)
+    {
+        SetFastFall(false);
+
+        isFluttering = false;
+        flutterUsedInAir = false;
+        flutterTimeLeft = 0f;
+
+        if (landingSprite != null && spriteRenderer != null)
+        {
+            StopAllCoroutines();
+            StartCoroutine(PlayLandingSprite());
+        }
+
+        float jumpV = (kind == GroundKind.Spring) ? springJumpVelocity : jumpVelocity;
+        v.y = jumpV;
+
+        PlaySfx(jumpSfx);
+    }
+
+    // ======== Flutter ========
+    private void TryStartFlutter(ref Vector2 v, bool grounded)
+    {
+        if (grounded) return;
+        if (isFastFalling) return;
+        if (isFluttering) return;
+        if (flutterUsedInAir) return;
+
+        if (!braceHeldCached) return;
+        if (v.y > 0f) return;
+
+        isFluttering = true;
+        flutterTimeLeft = braceHoldTime;
+
+        v.y = Mathf.Max(v.y, braceUpVelocity);
+
+        PlaySfx(braceStartSfx);
+    }
+
+    private void ApplyFlutter(ref Vector2 v)
+    {
+        if (!isFluttering) return;
+
+        if (wasGrounded)
+        {
+            CancelFlutter(consume: false);
+            return;
+        }
+
+        if (v.y < braceFallVelocityLimit)
+            v.y = braceFallVelocityLimit;
+
+        flutterTimeLeft -= Time.fixedDeltaTime;
+
+        if (flutterTimeLeft <= 0f)
+        {
+            isFluttering = false;
+            flutterTimeLeft = 0f;
+            flutterUsedInAir = true;
+
+            PlaySfx(braceBoostSfx);
+        }
+    }
+
+    private void CancelFlutter(bool consume)
+    {
+        if (!isFluttering && !consume) return;
+
+        isFluttering = false;
+        flutterTimeLeft = 0f;
+
+        if (consume)
+            flutterUsedInAir = true;
+    }
+
+    // ======== Visual ========
     private void UpdateFacing(float xInput)
     {
         if (spriteRenderer == null) return;
@@ -134,108 +400,11 @@ public class PlayerAutoJump2D : MonoBehaviour
         if (keepFacingWhenNoInput && Mathf.Approximately(xInput, 0f))
             return;
 
-        // ‰E“ü—Í‚È‚çu‰EŒü‚«vA¶“ü—Í‚È‚çu¶Œü‚«v‚É‚µ‚½‚¢
         bool wantFaceRight = xInput > 0f;
         if (xInput < 0f) wantFaceRight = false;
 
-        // ƒfƒtƒHƒ‹ƒg‚ª‰EŒü‚«‚ÌŠGF‰EŒü‚«=flipX:falseA¶Œü‚«=flipX:true
-        // ƒfƒtƒHƒ‹ƒg‚ª¶Œü‚«‚ÌŠGF‹t‚É‚È‚é‚Ì‚Å defaultFacingRight ‚Å•â³
         bool flip = defaultFacingRight ? !wantFaceRight : wantFaceRight;
         spriteRenderer.flipX = flip;
-    }
-
-    private void HandleFastFallInput()
-    {
-        bool pressedThisFrame =
-            Input.GetKeyDown(fastFallKey) ||
-            Input.GetKeyDown(fastFallAltKey);
-
-        if (!pressedThisFrame) return;
-
-        StopBrace(consume: true);
-
-        isFastFalling = true;
-        PlayFastFallLoop();
-    }
-
-    private void HandleBraceInputAndState()
-    {
-        bool down = Input.GetKeyDown(braceKey) || Input.GetKeyDown(braceAltKey);
-        bool held = Input.GetKey(braceKey) || Input.GetKey(braceAltKey);
-        bool up = Input.GetKeyUp(braceKey) || Input.GetKeyUp(braceAltKey);
-
-        if (down)
-        {
-            if (!braceUsedInAir && !braceBoosted)
-            {
-                SetFastFall(false);
-
-                StartBrace();
-                PlaySfx(braceStartSfx);
-            }
-        }
-
-        if (up && isBracing)
-        {
-            StopBrace(consume: true);
-        }
-
-        if (isBracing)
-        {
-            if (held)
-            {
-                braceHoldTimer += Time.deltaTime;
-
-                if (!braceBoosted && braceHoldTimer >= braceHoldTime)
-                {
-                    braceBoosted = true;
-
-                    float newY = Mathf.Max(rb.linearVelocity.y, braceUpVelocity);
-                    rb.linearVelocity = new Vector2(rb.linearVelocity.x, newY);
-
-                    PlaySfx(braceBoostSfx);
-                    StopBrace(consume: true);
-                }
-            }
-            else
-            {
-                StopBrace(consume: true);
-            }
-        }
-    }
-
-    private void StartBrace()
-    {
-        isBracing = true;
-        braceHoldTimer = 0f;
-    }
-
-    private void StopBrace(bool consume)
-    {
-        if (!isBracing && !consume) return;
-
-        isBracing = false;
-        braceHoldTimer = 0f;
-
-        if (consume) braceUsedInAir = true;
-    }
-
-    private void ApplyFastFallIfActive()
-    {
-        if (!isFastFalling) return;
-
-        float newY = Mathf.Min(rb.linearVelocity.y, fastFallVelocity);
-        rb.linearVelocity = new Vector2(rb.linearVelocity.x, newY);
-    }
-
-    private void ApplyBraceIfActive()
-    {
-        if (!isBracing) return;
-
-        if (rb.linearVelocity.y < braceFallVelocityLimit)
-        {
-            rb.linearVelocity = new Vector2(rb.linearVelocity.x, braceFallVelocityLimit);
-        }
     }
 
     private void UpdateSpriteByState()
@@ -255,6 +424,37 @@ public class PlayerAutoJump2D : MonoBehaviour
             spriteRenderer.sprite = normalSprite;
     }
 
+    private IEnumerator PlayLandingSprite()
+    {
+        if (spriteRenderer == null || landingSprite == null) yield break;
+
+        isLandingSpritePlaying = true;
+        spriteRenderer.sprite = landingSprite;
+        yield return new WaitForSeconds(landingSpriteDuration);
+        isLandingSpritePlaying = false;
+
+        if (normalSprite != null)
+            spriteRenderer.sprite = normalSprite;
+    }
+
+    private void UpdateAfterimage()
+    {
+        if (!isFastFalling) return;
+        if (afterimagePrefab == null) return;
+        if (spriteRenderer == null) return;
+
+        if (rb.linearVelocity.sqrMagnitude < afterimageMinSpeed * afterimageMinSpeed)
+            return;
+
+        afterimageTimer += Time.deltaTime;
+        if (afterimageTimer < afterimageInterval) return;
+        afterimageTimer = 0f;
+
+        var g = Instantiate(afterimagePrefab, spriteRenderer.transform.position, spriteRenderer.transform.rotation);
+        g.InitFrom(spriteRenderer);
+    }
+
+    // ======== Wrap ========
     private void DoHorizontalWrap()
     {
         if (targetCamera == null) return;
@@ -274,99 +474,24 @@ public class PlayerAutoJump2D : MonoBehaviour
         rb.position = pos;
     }
 
+    // ======== Thorn Safety Netï¼ˆBoxCastæ¼ã‚Œå¯¾ç­–ï¼‰ ========
     private void OnCollisionEnter2D(Collision2D collision)
     {
-        // ‚Ü‚¸uã‚©‚ç’…’nv‚©‚Ç‚¤‚©
-        if (!IsLandingFromAbove(collision, out bool isSpring)) return;
-
-        // ’Ç‰ÁFƒgƒQ‘«ê‚È‚ç‘¦GameOver
-        if (collision.collider.CompareTag(thornGroundTag))
-        {
-            TriggerGameOverByThorn();
-            return;
-        }
-
-        // ‚±‚±‚©‚ç‚Í’Êí‚Ì’n–Êˆ—iŠù‘¶‚Ì‚Ü‚Üj
-        SetFastFall(false);
-
-        // ’…’n‚Å“¥‚ñ’£‚èƒŠƒZƒbƒgi‚ ‚È‚½‚ÌŠù‘¶ˆ—j
-        isBracing = false;
-        braceHoldTimer = 0f;
-        braceUsedInAir = false;
-        braceBoosted = false;
-
-        PlayLandingSprite();
-
-        float v = isSpring ? springJumpVelocity : jumpVelocity;
-        rb.linearVelocity = new Vector2(rb.linearVelocity.x, v);
-
-        PlaySfx(jumpSfx);
-    }
-
-    private bool IsLandingFromAbove(Collision2D collision, out bool isSpring)
-    {
-        isSpring = false;
-
-        var col = collision.collider;
-        bool isGround = col.CompareTag(groundTag);
-        isSpring = col.CompareTag(springGroundTag);
-
-        if (!isGround && !isSpring) return false;
+        if (isDead) return;
+        if (!collision.collider.CompareTag(thornGroundTag)) return;
 
         for (int i = 0; i < collision.contactCount; i++)
         {
             var c = collision.GetContact(i);
-            if (c.normal.y > 0.5f) return true;
+            if (c.normal.y >= groundNormalMinY)
+            {
+                TriggerGameOverByThorn();
+                return;
+            }
         }
-        return false;
     }
 
-    private void PlayLandingSprite()
-    {
-        if (spriteRenderer == null) return;
-        if (landSprite == null) return;
-
-        if (landRoutine != null) StopCoroutine(landRoutine);
-        landRoutine = StartCoroutine(LandingSpriteRoutine());
-    }
-
-    private IEnumerator LandingSpriteRoutine()
-    {
-        isLandingSpritePlaying = true;
-
-        if (!isFastFalling)
-            spriteRenderer.sprite = landSprite;
-
-        yield return new WaitForSeconds(landSpriteTime);
-
-        isLandingSpritePlaying = false;
-        UpdateSpriteByState();
-
-        landRoutine = null;
-    }
-
-    private void UpdateAfterimage()
-    {
-        if (afterimagePrefab == null) return;
-        if (spriteRenderer == null) return;
-
-        if (!isFastFalling)
-        {
-            afterimageTimer = 0f;
-            return;
-        }
-
-        if (rb.linearVelocity.sqrMagnitude < afterimageMinSpeed * afterimageMinSpeed)
-            return;
-
-        afterimageTimer += Time.deltaTime;
-        if (afterimageTimer < afterimageInterval) return;
-        afterimageTimer = 0f;
-
-        var g = Instantiate(afterimagePrefab, spriteRenderer.transform.position, spriteRenderer.transform.rotation);
-        g.InitFrom(spriteRenderer);
-    }
-
+    // ======== Audio / FastFall State ========
     private void PlaySfx(AudioClip clip)
     {
         if (clip == null) return;
@@ -416,21 +541,36 @@ public class PlayerAutoJump2D : MonoBehaviour
             fastFallLoopSource.Stop();
     }
 
-    
-
+    // ======== Thorn Death (Frames) ========
     private void TriggerGameOverByThorn()
     {
-        // ƒvƒŒƒCƒ„[‚ğ~‚ß‚éiŒ©‚½–Úãuh‚³‚Á‚½vŠ´‚¶‚Éj
-        SetFastFall(false);
+        if (isDead) return;
+        isDead = true;
+        PlaySfx(thornHitSfx);
+        StopPlayerMovement(); 
 
-        if (rb != null)
+        if (thornRoutine != null) StopCoroutine(thornRoutine);
+        thornRoutine = StartCoroutine(ThornDeathSequence());
+    }
+
+    private IEnumerator ThornDeathSequence()
+    {
+        if (spriteRenderer != null && thornHitFrames != null && thornHitFrames.Length > 0)
         {
-            rb.linearVelocity = Vector2.zero;
-            rb.angularVelocity = 0f;
-            rb.bodyType = RigidbodyType2D.Static;
+            for (int i = 0; i < thornHitFrames.Length; i++)
+            {
+                var s = thornHitFrames[i];
+                if (s != null) spriteRenderer.sprite = s;
+                yield return new WaitForSeconds(thornHitFrameTime);
+            }
+
+            if (!holdLastThornFrame && normalSprite != null)
+                spriteRenderer.sprite = normalSprite;
         }
 
-        // Camera‘¤‚ÌGameOver‚É”C‚¹‚éiƒtƒF[ƒh¨ResultScenej
+        if (thornHitExtraDelay > 0f)
+            yield return new WaitForSeconds(thornHitExtraDelay);
+
         var cam = FindAnyObjectByType<CameraFollowScore2D>();
         if (cam != null)
         {
@@ -438,8 +578,33 @@ public class PlayerAutoJump2D : MonoBehaviour
         }
         else
         {
-            // ƒJƒƒ‰‚ªŒ©‚Â‚©‚ç‚È‚¢•ÛŒ¯iÅˆ«‚Å‚à~‚Ü‚é‚¾‚¯‚É‚È‚éj
-            Debug.LogWarning("CameraFollowScore2D ‚ªŒ©‚Â‚©‚ç‚È‚¢‚½‚ßAThornGround‚ÌGameOver‚ğÀs‚Å‚«‚Ü‚¹‚ñB");
+            Debug.LogWarning("CameraFollowScore2D ãŒè¦‹ã¤ã‹ã‚‰ãªã„ãŸã‚ã€ThornGroundã®GameOverã‚’å®Ÿè¡Œã§ãã¾ã›ã‚“ã€‚");
+        }
+    }
+
+    public void StopPlayerMovement()
+    {
+        if (isDead) return;
+        isDead = true;
+
+        // å…¥åŠ›ãƒ»å‡¦ç†åœæ­¢
+        fastFallPressedQueued = false;
+        braceHeldCached = false;
+        cachedMoveInputX = 0f;
+
+        // åŠ¹æœè§£é™¤ï¼†SEåœæ­¢
+        SetFastFall(false);
+        StopFastFallLoop();
+
+        // ã‚³ãƒ«ãƒ¼ãƒãƒ³åœæ­¢ï¼ˆç€åœ°ã‚¢ãƒ‹ãƒ¡ç­‰ï¼‰
+        StopAllCoroutines();
+
+        // é€Ÿåº¦åœæ­¢ & ç‰©ç†åœæ­¢
+        if (rb != null)
+        {
+            rb.linearVelocity = Vector2.zero;
+            rb.angularVelocity = 0f;
+            rb.simulated = false; // Staticã‚ˆã‚Šå®‰å…¨
         }
     }
 }

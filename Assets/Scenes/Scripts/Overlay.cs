@@ -2,67 +2,119 @@ using System.Collections;
 using UnityEngine;
 using UnityEngine.UI;
 
+[RequireComponent(typeof(Image))]
 public class Overlay : MonoBehaviour
 {
-    private Image image;
-    private const int TIME = 3;
+    [Header("Auto Fade")]
+    [SerializeField] private bool fadeInOnStart = true;
+    [SerializeField] private bool dontDestroyOnLoad = false;
 
-    // Start is called once before the first execution of Update after the MonoBehaviour is created
-    void Start()
+    [Header("Fade Settings")]
+    [SerializeField] private float fadeSpeed = 1f; // 1秒でalphaを1動かす（Time.deltaTime * fadeSpeed）
+
+    private Image image;
+    private Coroutine running;
+
+    private void Awake()
     {
         image = GetComponent<Image>();
-        StartCoroutine(FadeIn());
+
+        if (dontDestroyOnLoad)
+            DontDestroyOnLoad(gameObject);
     }
 
-    // Update is called once per frame
-    void Update()
+    private void Start()
     {
+        if (fadeInOnStart)
+            Run(FadeIn());
+    }
 
+    private void OnDisable()
+    {
+        StopRunning();
+    }
+
+    private void OnDestroy()
+    {
+        StopRunning();
+    }
+
+    private void StopRunning()
+    {
+        if (running != null)
+        {
+            StopCoroutine(running);
+            running = null;
+        }
+    }
+
+    private void Run(IEnumerator routine)
+    {
+        StopRunning();
+        running = StartCoroutine(routine);
     }
 
     public IEnumerator FadeIn()
     {
+        if (image == null) yield break;
+
+        image.enabled = true;
+
         Color color = image.color;
-        color.a = 1;
+        color.a = 1f;
         image.color = color;
 
         while (true)
         {
-            color.a -= Time.deltaTime;
-            color.a = Mathf.Max(color.a, 0);
-            image.color = color;
+            if (image == null) yield break; // 破棄/シーン遷移保険
 
-            if (color.a == 0)
+            color = image.color;
+            color.a -= Time.deltaTime * fadeSpeed;
+            if (color.a <= 0f)
             {
+                color.a = 0f;
+                image.color = color;
                 break;
             }
 
+            image.color = color;
             yield return null;
         }
 
-        image.enabled = false;
+        // 完全に透明になったら非表示（クリックも通したいならRaycast TargetもOFF推奨）
+        if (image != null)
+            image.enabled = false;
+
+        running = null;
     }
 
     public IEnumerator FadeOut()
     {
+        if (image == null) yield break;
+
         image.enabled = true;
 
         Color color = image.color;
-        color.a = 0;
+        color.a = 0f;
         image.color = color;
 
         while (true)
         {
-            color.a += Time.deltaTime;
-            color.a = Mathf.Min(color.a, 1);
-            image.color = color;
+            if (image == null) yield break; // 破棄/シーン遷移保険
 
-            if (color.a == 1)
+            color = image.color;
+            color.a += Time.deltaTime * fadeSpeed;
+            if (color.a >= 1f)
             {
+                color.a = 1f;
+                image.color = color;
                 break;
             }
 
+            image.color = color;
             yield return null;
         }
+
+        running = null;
     }
 }

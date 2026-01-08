@@ -62,30 +62,71 @@ public class CameraFollowScore2D : MonoBehaviour
         }
 
         transform.position = new Vector3(transform.position.x, newY, transform.position.z);
-        ScoreY = maxCameraY;
+        ScoreY = maxCameraY * 100;
 
         if (player.position.y < transform.position.y - gameOverBelowCamera)
         {
-            StartCoroutine(GameOver());
+            var player = FindAnyObjectByType<PlayerAutoJump2D>();
+            if (player != null) player.StopPlayerMovement();
+            GameOverNow();
         }
     }
 
-    // 追加：外部から即GameOverさせる
     public void GameOverNow()
     {
         if (isGameOver) return;
-        StartCoroutine(GameOver());
+        StartCoroutine(GameOverCoroutine());
     }
 
-    private IEnumerator GameOver()
+    private IEnumerator GameOverCoroutine()
     {
-        if (isGameOver) yield break;
         isGameOver = true;
+
+        // スコア保存（ResultSceneで読む用）
         PlayerPrefs.SetFloat("LAST_SCORE", ScoreY);
         PlayerPrefs.Save();
-        var overlay = FindAnyObjectByType<Overlay>();
+
+        // Overlayは無くても進む。見つからなくても例外にしない。
+        Overlay overlay = null;
+#if UNITY_2023_1_OR_NEWER
+        overlay = FindFirstObjectByType<Overlay>();
+#else
+        overlay = FindObjectOfType<Overlay>();
+#endif
         if (overlay != null)
-            yield return overlay.FadeOut();
+        {
+            // フェードが途中で失敗しても遷移するように保険
+            IEnumerator fadeEnum = null;
+            try { fadeEnum = overlay.FadeOut(); }
+            catch (System.Exception e) { Debug.LogWarning($"FadeOut start failed: {e}"); }
+
+            if (fadeEnum != null)
+            {
+                bool finished = false;
+                while (!finished)
+                {
+                    object current = null;
+                    try
+                    {
+                        finished = !fadeEnum.MoveNext();
+                        if (!finished) current = fadeEnum.Current;
+                    }
+                    catch (System.Exception e)
+                    {
+                        Debug.LogWarning($"FadeOut failed: {e}");
+                        break;
+                    }
+                    yield return current;
+                }
+            }
+        }
+
+        // Build SettingsにResultSceneが入ってないとWebGLでは特に分かりにくいのでログ
+        if (!Application.CanStreamedLevelBeLoaded(resultSceneName))
+        {
+            Debug.LogError($"ResultScene '{resultSceneName}' がBuild Settingsに含まれていません。File > Build Settings に追加してください。");
+            yield break;
+        }
 
         SceneManager.LoadScene(resultSceneName);
     }

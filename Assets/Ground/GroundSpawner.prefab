@@ -47,14 +47,17 @@ MonoBehaviour:
   targetCamera: {fileID: 0}
   groundPrefab: {fileID: 7150121900155846493, guid: d3463c1893336c44da461f0090644afe, type: 3}
   springGroundPrefab: {fileID: 5532515903569815868, guid: 29d208242f65e8845b148152e60f97a9, type: 3}
+  thornGroundPrefab: {fileID: 7150121900155846493, guid: f0f56df90349b0745a90e6968a404331, type: 3}
   xMargin: 0.6
   spawnAhead: 12
   destroyBelow: 8
   minStepY: 1.2
   maxStepY: 2.6
   maxStepX: 3
-  springChance: 0.15
+  springChance: 0
   springCooldownCount: 3
+  thornChance: 0.981
+  thornCooldownCount: 4
   initialCount: 12
   initialStartY: -2
   initialEndY: 12

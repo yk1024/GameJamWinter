@@ -28,7 +28,7 @@ public class ScoreScript : MonoBehaviour
     {
         if (cameraScore == null || scoreText == null) return;
 
-        float score = cameraScore.ScoreY + scoreOffset;
+        float score = (cameraScore.ScoreY + scoreOffset);
         if (score < 0) score = 0;
 
         scoreText.text = prefix + Mathf.FloorToInt(score).ToString();
